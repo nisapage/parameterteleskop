@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi Parameter Teleskop</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --panel: #161b22;
+            --text: #ecf0f1;
+            --blue: #38bdf8;
+            --yellow: #f1c40f;
+            --green: #2ecc71;
+            --purple: #a855f7;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg); color: var(--text);
+            margin: 0; padding: 20px; display: flex;
+            flex-direction: column; align-items: center;
+        }
+        .container { max-width: 950px; width: 100%; }
+        h1 { text-align: center; color: var(--blue); margin-top: 0; font-size: 24px; }
+        p.subtitle { text-align: center; color: #8b949e; font-size: 14px; margin-bottom: 20px; }
+
+        /* Panel Kontrol */
+        .controls {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 15px; background: var(--panel); padding: 20px;
+            border-radius: 12px; border: 1px solid #30363d; margin-bottom: 20px;
+        }
+        .control-group { display: flex; flex-direction: column; }
+        label { font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #8b949e; display: flex; justify-content: space-between; }
+        label span { color: var(--blue); font-size: 15px; }
+        input[type=range] { width: 100%; cursor: pointer; }
+
+        /* Grid Kanvas (Optik & FOV) */
+        .visual-grid {
+            display: grid; grid-template-columns: 3fr 2fr; gap: 15px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 768px) { .visual-grid { grid-template-columns: 1fr; } }
+
+        .canvas-card {
+            background: var(--panel); border: 1px solid #30363d;
+            border-radius: 12px; padding: 15px; display: flex;
+            flex-direction: column; align-items: center;
+        }
+        .canvas-title { font-size: 14px; font-weight: bold; color: var(--yellow); margin-bottom: 10px; }
+        canvas { background: #05080f; border-radius: 8px; border: 1px solid #21262d; width: 100%; height: 260px; }
+
+        /* Kartu Hasil Perhitungan */
+        .results {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px; margin-bottom: 20px;
+        }
+        .card {
+            background: var(--panel); padding: 15px; border-radius: 10px;
+            border-left: 4px solid var(--blue); text-align: center; border: 1px solid #30363d;
+            border-left-width: 4px;
+        }
+        .card h3 { margin: 0; font-size: 11px; color: #8b949e; text-transform: uppercase; }
+        .card .val { font-size: 22px; font-weight: bold; margin: 8px 0 4px 0; color: #fff; }
+        .card .desc { font-size: 11px; color: #8b949e; }
+        
+        #card-fob { border-left-color: var(--blue); }
+        #card-d { border-left-color: var(--green); }
+        #card-mag { border-left-color: var(--yellow); }
+        #card-fov { border-left-color: var(--purple); }
+
+        .desc-box {
+            background: var(--panel); padding: 20px; border-radius: 12px;
+            border-left: 5px solid var(--blue); border: 1px solid #30363d;
+            border-left-width: 5px; font-size: 14px; line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🔭 Simulasi Parameter Teleskop & Medan Pandang</h1>
+    <p class="subtitle">Bedah rumus: <b>f<sub>ob</sub> = Ratio × D<sub>t</sub></b> dan <b>Panjang Tabung (d) = f<sub>ob</sub> + f<sub>ok</sub></b></p>
+
+    <!-- Kontrol Slider -->
+    <div class="controls">
+        <div class="control-group">
+            <label>1. Diameter Teleskop (D<sub>t</sub>): <span id="val-dt">100 mm</span></label>
+            <input type="range" id="slider-dt" min="60" max="200" step="10" value="100">
+        </div>
+        <div class="control-group">
+            <label>2. Nisbah Fokal (f / #): <span id="val-ratio">f / 9</span></label>
+            <input type="range" id="slider-ratio" min="4" max="15" step="1" value="9">
+        </div>
+        <div class="control-group">
+            <label>3. Fokus Lensa Okuler (f<sub>ok</sub>): <span id="val-fok">25 mm</span></label>
+            <input type="range" id="slider-fok" min="5" max="40" step="5" value="25">
+        </div>
+    </div>
+
+    <!-- Area Kanvas -->
+    <div class="visual-grid">
+        <div class="canvas-card">
+            <div class="canvas-title">📐 Diagram Optik & Panjang Tabung (d)</div>
+            <canvas id="opticsCanvas" width="550" height="260"></canvas>
+        </div>
+        <div class="canvas-card">
+            <div class="canvas-title">👁️ Medan Pandang (FOV) di Okuler</div>
+            <canvas id="fovCanvas" width="350" height="260"></canvas>
+        </div>
+    </div>
+
+    <!-- Hasil Digital -->
+    <div class="results">
+        <div class="card" id="card-fob">
+            <h3>Panjang Fokus (f<sub>ob</sub>)</h3>
+            <div class="val" id="out-fob">900 mm</div>
+            <div class="desc">f<sub>ob</sub> = <span id="out-formula">9 × 100</span></div>
+        </div>
+        <div class="card" id="card-d">
+            <h3>Panjang Tabung (d)</h3>
+            <div class="val" id="out-d">925 mm</div>
+            <div class="desc">d = f<sub>ob</sub> + f<sub>ok</sub></div>
+        </div>
+        <div class="card" id="card-mag">
+            <h3>Perbesaran (Zoom)</h3>
+            <div class="val" id="out-mag">36×</div>
+            <div class="desc">M = f<sub>ob</sub> / f<sub>ok</sub></div>
+        </div>
+        <div class="card" id="card-fov">
+            <h3>Medan Pandang (FOV)</h3>
+            <div class="val" id="out-fov" style="font-size: 18px; margin-top: 10px;">Sedang</div>
+            <div class="desc" id="out-fov-desc">Area langit yang terlihat</div>
+        </div>
+    </div>
+
+    <!-- Penjelasan -->
+    <div class="desc-box">
+        💡 <b>Tips Memahami Slide Kuliahmu:</b><br>
+        • Saat kamu mengganti <b>Nisbah Fokal</b> menjadi <b>f/9</b>, artinya panjang fokus objektif (f<sub>ob</sub>) adalah 9 kali diameter teleskop (D<sub>t</sub>).<br>
+        • Perhatikan sketsa tangan di slidemu! Ketika <b>f<sub>ob</sub> makin panjang</b> (Nisbah Fokal besar), sudut sinar yang bertemu di titik fokus menjadi lebih lancip. Efeknya, zoom menjadi sangat kuat tapi <b>Medan Pandang (FOV) di lensa okuler menjadi sempit</b> (Saturnus terlihat raksasa tapi langit sekitarnya terpotong).
+    </div>
+</div>
+
+<script>
+    const optCanvas = document.getElementById('opticsCanvas');
+    const optCtx = optCanvas.getContext('2d');
+    
+    const fovCanvas = document.getElementById('fovCanvas');
+    const fovCtx = fovCanvas.getContext('2d');
+
+    const sDt = document.getElementById('slider-dt');
+    const sRatio = document.getElementById('slider-ratio');
+    const sFok = document.getElementById('slider-fok');
+
+    function updateAll() {
+        // 1. Ambil Nilai Slider
+        const dt = parseInt(sDt.value);
+        const ratio = parseInt(sRatio.value);
+        const fok = parseInt(sFok.value);
+
+        // 2. Update Label Slider
+        document.getElementById('val-dt').textContent = `${dt} mm`;
+        document.getElementById('val-ratio').textContent = `f / ${ratio}`;
+        document.getElementById('val-fok').textContent = `${fok} mm`;
+
+        // 3. Rumus Perhitungan Sesuai Slide
+        const fob = dt * ratio; // fob = ratio * Dt
+        const d = fob + fok;    // d = fob + fok
+        const mag = Math.round(fob / fok); // Perbesaran M = fob / fok
+
+        // 4. Update Kartu Hasil
+        document.getElementById('out-fob').textContent = `${fob} mm`;
+        document.getElementById('out-formula').textContent = `${ratio} × ${dt}`;
+        document.getElementById('out-d').textContent = `${d} mm`;
+        document.getElementById('out-mag').textContent = `${mag}×`;
+
+        // Tentukan status FOV
+        let fovStatus = "Luas (Wide FOV)";
+        let fovDesc = "Cocok untuk Nebula & Galaksi";
+        if (mag > 100) {
+            fovStatus = "Sangat Sempit";
+            fovDesc = "Cocok untuk Detail Planet";
+        } else if (mag > 50) {
+            fovStatus = "Sedang (Normal)";
+            fovDesc = "Cocok untuk Bulan & Planet";
+        }
+        document.getElementById('out-fov').textContent = fovStatus;
+        document.getElementById('out-fov-desc').textContent = fovDesc;
+
+        // 5. Gambar Diagram Optik (Canvas Kiri)
+        drawOptics(dt, fob, fok, d);
+
+        // 6. Gambar Medan Pandang FOV (Canvas Kanan)
+        drawFOV(mag);
+    }
+
+    function drawOptics(dt, fob, fok, d) {
+        optCtx.clearRect(0, 0, optCanvas.width, optCanvas.height);
+        
+        const w = optCanvas.width;
+        const h = optCanvas.height;
+        const centerY = h / 2 - 15;
+
+        // Skala visual agar muat di kanvas (fob maks 3000mm -> map ke lebar kanvas)
+        // Lensa objektif di x = 50
+        const startX = 60;
+        // Kita map fob minimal (240mm) ke 100px, dan fob maksimal (3000mm) ke 380px
+        const visualFob = 80 + (fob / 3000) * 300;
+        const focalX = startX + visualFob;
+        
+        // Visual fok di-scale
+        const visualFok = Math.max(25, (fok / 40) * 50);
+        const eyepieceX = focalX + visualFok;
+
+        // Skala diameter lensa
+        const lensHeight = (dt / 200) * 120;
+
+        // A. Gambar Garis Sumbu Utama
+        optCtx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+        optCtx.setLineDash([4, 4]);
+        optCtx.beginPath(); optCtx.moveTo(10, centerY); optCtx.lineTo(w - 10, centerY); optCtx.stroke();
+        optCtx.setLineDash([]);
+
+        // B. Gambar Berkas Sinar (Kuning)
+        optCtx.fillStyle = "rgba(241, 196, 15, 0.15)";
+        optCtx.strokeStyle = "#f1c40f"; optCtx.lineWidth = 1.5;
+        optCtx.beginPath();
+        optCtx.moveTo(10, centerY - lensHeight/2);
+        optCtx.lineTo(startX, centerY - lensHeight/2);
+        optCtx.lineTo(focalX, centerY); // Menuju titik fokus
+        optCtx.lineTo(eyepieceX, centerY + (lensHeight/4));
+        optCtx.lineTo(w - 20, centerY + (lensHeight/4));
+        optCtx.lineTo(w - 20, centerY - (lensHeight/4));
+        optCtx.lineTo(eyepieceX, centerY - (lensHeight/4));
+        optCtx.lineTo(focalX, centerY);
+        optCtx.lineTo(startX, centerY + lensHeight/2);
+        optCtx.lineTo(10, centerY + lensHeight/2);
+        optCtx.closePath();
+        optCtx.fill(); optCtx.stroke();
+
+        // C. Gambar Lensa Objektif (Depan)
+        optCtx.fillStyle = "rgba(56, 189, 248, 0.4)";
+        optCtx.strokeStyle = "#38bdf8"; optCtx.lineWidth = 3;
+        optCtx.beginPath();
+        optCtx.ellipse(startX, centerY, 8, lensHeight/2, 0, 0, Math.PI * 2);
+        optCtx.fill(); optCtx.stroke();
+        optCtx.fillStyle = "#38bdf8"; optCtx.font = "bold 11px sans-serif";
+        optCtx.fillText("Objektif", startX - 20, centerY - lensHeight/2 - 10);
+        optCtx.fillText(`Dt=${dt}`, startX - 15, centerY - lensHeight/2 - 22);
+
+        // D. Gambar Titik Fokus
+        optCtx.fillStyle = "#ff7b72";
+        optCtx.beginPath(); optCtx.arc(focalX, centerY, 4, 0, Math.PI * 2); optCtx.fill();
+        optCtx.fillStyle = "#ff7b72"; optCtx.font = "11px sans-serif";
+        optCtx.fillText("Titik Fokus", focalX - 25, centerY + 20);
+
+        // E. Gambar Lensa Okuler (Belakang)
+        optCtx.fillStyle = "rgba(46, 204, 113, 0.4)";
+        optCtx.strokeStyle = "#2ecc71"; optCtx.lineWidth = 3;
+        optCtx.beginPath();
+        optCtx.ellipse(eyepieceX, centerY, 5, 25, 0, 0, Math.PI * 2);
+        optCtx.fill(); optCtx.stroke();
+        optCtx.fillStyle = "#2ecc71"; optCtx.font = "bold 11px sans-serif";
+        optCtx.fillText("Okuler", eyepieceX - 15, centerY - 35);
+
+        // F. Garis Dimensi f_ob, f_ok, dan d
+        const dimY = h - 45;
+        // Dimensi fob
+        drawDimLine(optCtx, startX, focalX, dimY - 15, `fob = ${fob}mm`, "#38bdf8");
+        // Dimensi fok
+        drawDimLine(optCtx, focalX, eyepieceX, dimY - 15, `fok`, "#2ecc71");
+        // Dimensi d (Panjang Total)
+        drawDimLine(optCtx, startX, eyepieceX, dimY + 10, `Panjang Tabung (d) = ${d} mm`, "#f1c40f", true);
+    }
+
+    function drawDimLine(ctx, x1, x2, y, text, color, bold=false) {
+        ctx.strokeStyle = color; ctx.lineWidth = bold ? 2 : 1;
+        ctx.beginPath();
+        ctx.moveTo(x1, y); ctx.lineTo(x2, y);
+        // Panah ujung
+        ctx.moveTo(x1+5, y-3); ctx.lineTo(x1, y); ctx.lineTo(x1+5, y+3);
+        ctx.moveTo(x2-5, y-3); ctx.lineTo(x2, y); ctx.lineTo(x2-5, y+3);
+        ctx.stroke();
+        
+        ctx.fillStyle = color; ctx.font = (bold ? "bold " : "") + "11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(text, (x1 + x2)/2, y - 5);
+        ctx.textAlign = "left"; // Reset
+    }
+
+    function drawFOV(mag) {
+        fovCtx.clearRect(0, 0, fovCanvas.width, fovCanvas.height);
+        
+        const w = fovCanvas.width;
+        const h = fovCanvas.height;
+        const centerX = w / 2;
+        const centerY = h / 2;
+        const fovRadius = 110;
+
+        // 1. Latar Belakang Luar Okuler (Hitam Gelap)
+        fovCtx.fillStyle = "#020408";
+        fovCtx.fillRect(0, 0, w, h);
+
+        // 2. Lingkaran Medan Pandang (FOV Okuler)
+        fovCtx.save();
+        fovCtx.beginPath();
+        fovCtx.arc(centerX, centerY, fovRadius, 0, Math.PI * 2);
+        fovCtx.clip(); // Potong semua gambar cuma di dalam lingkaran
+
+        // Latar langit malam di dalam okuler
+        fovCtx.fillStyle = "#09111e";
+        fovCtx.fillRect(0, 0, w, h);
+
+        // Gambar Bintang-Bintang Latar Belakang
+        fovCtx.fillStyle = "#ffffff";
+        const stars = [[50,60],[80,120],[130,50],[200,80],[220,180],[100,200],[280,130],[160,220],[70,160]];
+        stars.forEach(pt => {
+            fovCtx.beginPath(); fovCtx.arc(pt[0], pt[1], 1.5, 0, Math.PI*2); fovCtx.fill();
+        });
+
+        // 3. Gambar Planet Saturnus (Ukuran bergantung pada perbesaran mag)
+        // Mag minimal 15x -> ukuran kecil. Mag maks 600x -> memenuhi layar
+        const saturnSize = Math.max(10, Math.min(180, (mag / 100) * 35));
+
+        fovCtx.save();
+        fovCtx.translate(centerX, centerY);
+        fovCtx.rotate(-0.3); // Miringkan Saturnus
+
+        // Gambar Cincin Saturnus Belakang
+        fovCtx.strokeStyle = "rgba(210, 180, 140, 0.7)";
+        fovCtx.lineWidth = saturnSize * 0.3;
+        fovCtx.beginPath();
+        fovCtx.ellipse(0, 0, saturnSize * 1.8, saturnSize * 0.5, 0, Math.PI, Math.PI * 2);
+        fovCtx.stroke();
+
+        // Gambar Badan Saturnus
+        fovCtx.fillStyle = "#e5c158";
+        fovCtx.beginPath();
+        fovCtx.arc(0, 0, saturnSize, 0, Math.PI * 2);
+        fovCtx.fill();
+        // Bayangan di planet
+        fovCtx.fillStyle = "rgba(0,0,0,0.2)";
+        fovCtx.beginPath();
+        fovCtx.arc(0, 0, saturnSize, 0, Math.PI);
+        fovCtx.fill();
+
+        // Gambar Cincin Saturnus Depan
+        fovCtx.strokeStyle = "rgba(225, 198, 153, 0.9)";
+        fovCtx.beginPath();
+        fovCtx.ellipse(0, 0, saturnSize * 1.8, saturnSize * 0.5, 0, 0, Math.PI);
+        fovCtx.stroke();
+
+        fovCtx.restore();
+        fovCtx.restore(); // Lepas clip
+
+        // 4. Bingkai Okuler (Lingkaran Besi)
+        fovCtx.strokeStyle = "#334155";
+        fovCtx.lineWidth = 12;
+        fovCtx.beginPath();
+        fovCtx.arc(centerX, centerY, fovRadius + 5, 0, Math.PI * 2);
+        fovCtx.stroke();
+
+        fovCtx.strokeStyle = "#000000";
+        fovCtx.lineWidth = 2;
+        fovCtx.beginPath();
+        fovCtx.arc(centerX, centerY, fovRadius, 0, Math.PI * 2);
+        fovCtx.stroke();
+
+        // Teks Perbesaran di pojok kanvas
+        fovCtx.fillStyle = "#38bdf8"; fovCtx.font = "bold 12px sans-serif";
+        fovCtx.fillText(`Zoom: ${mag}×`, 15, 25);
+    }
+
+    sDt.addEventListener('input', updateAll);
+    sRatio.addEventListener('input', updateAll);
+    sFok.addEventListener('input', updateAll);
+
+    updateAll();
+</script>
+
+</body>
+</html>
